@@ -1,31 +1,3 @@
-"""
-This env can run with stable_baseline
-
-dev base from env_qoelog_v17_07_dup_real-trace
-
-1. Use class fields instead of global fields
-2. Use Enum for EVENT type, Path and SCHEDULE
-3. Change state to dict
-4. Use var IS_NOT_DOWNLOADED instead of -1
-5. Use elif
-6. Use EVENT Object
-7. Refactor, delete comment
-use timeline
-8. Normalize reward by video length
-
-Success train with sb3
-
-TODO:
-
-1. Extend PATH DYNAMIC
-2. Control stop on one path
-    Add 1 more action
-3. discrete action.
-
-
-
-"""
-
 import math
 import pickle
 import random
@@ -100,7 +72,6 @@ class Env(gym.Env):
         # get bandwidth
         self.bws_list = bitrate_lists
 
-        # initial state, use to lazy initialize the network input
         self.state = dict(
             est_throughput1=gym.spaces.Box(low=0, high=float("inf"), shape=(self.HISTORY_SIZE,), dtype=np.float32),
             est_throughput2=gym.spaces.Box(low=0, high=float("inf"), shape=(self.HISTORY_SIZE,), dtype=np.float32),
@@ -228,10 +199,8 @@ class Env(gym.Env):
         return self.state.keys()
 
     def action_space(self):
-        # if self.multi_discrete:
         return [self.SEGMENT_SPACE , self.QUALITY_SPACE]
-        # else:
-        #     return self.SEGMENT_SPACE * self.QUALITY_SPACE
+
 
     def get_video_list(self):
         return self.video_list
@@ -240,13 +209,6 @@ class Env(gym.Env):
         return sum(self.down_segment == self.IS_NOT_DOWNLOADED)
 
     def feasible_action(self):
-        f_action = np.array([], dtype=int)
-        # if self.schedule_type == self.SCHEDULE.DUPLICATE:
-        #     for i in range(self.play_id + 1, min(self.CHUNK_TIL_VIDEO_END_CAP, self.play_id + 1 + self.SEGMENT_SPACE)):
-        #         for j in range(self.QUALITY_SPACE):
-        #             if (self.down_segment[i] == self.IS_NOT_DOWNLOADED) or (self.down_segment[i] < j):
-        #                 f_action = np.append(f_action, (i - self.play_id - 1) * self.QUALITY_SPACE + j)
-
         if self.schedule_type == self.SCHEDULE.NO_DUPLICATE:
             for i in range(self.play_id + 1, min(self.CHUNK_TIL_VIDEO_END_CAP, self.play_id + 1 + self.SEGMENT_SPACE)):
                 if self.down_segment[i] == self.IS_NOT_DOWNLOADED:
@@ -264,12 +226,6 @@ class Env(gym.Env):
 
     # This function for multi-discrete
     def pick_next_segment(self):
-        # if self.schedule_type == self.SCHEDULE.DUPLICATE:
-        #     f_action=np.array([], dtype=int)
-        #     for i in range(self.play_id + 1, min(self.CHUNK_TIL_VIDEO_END_CAP, self.play_id + 1 + self.SEGMENT_SPACE)):
-        #         f_action = np.append(f_action, i - (self.play_id+1))
-        #     return f_action
-
         if self.schedule_type == self.SCHEDULE.NO_DUPLICATE:
             feasible_segment = np.array([], dtype=int)
             for i in range(self.play_id + 1,
@@ -355,23 +311,10 @@ class Env(gym.Env):
         if self.multi_discrete:
             next_down_chunk, down_quality = action
             down_id = self.play_id + next_down_chunk + 1
-        # else:
-        #     down_id, down_quality = self.pick_action(action)
-
-        #print("down_id={}, quality={}, play_id:{}".format(down_id, down_quality, self.play_id))
-
-        # if down_id has not downloaded yet, but buffer if full then delete the higher id in buffer
-        # if (self.down_segment_f[down_id] == self.IS_NOT_DOWNLOADED) and (self.buffer_size > self.BUFFER_THRESH):
-        #     id = np.where(self.down_segment_f != self.IS_NOT_DOWNLOADED)[-1][-1]
-        #     self.down_segment[id] = self.IS_NOT_DOWNLOADED
-        #     self.down_segment_f[id] = self.IS_NOT_DOWNLOADED
-        #     self.buffer_size -= self.VIDEO_CHUNK_LEN
 
         # NEW STEP
         cur_event = self.time_line.get_next_event()
-        # print(cur_event)
-        # cur_down_time = cur_event.cur_time
-        # cur_down_path = cur_event.cur_path
+        self.cur_down_path = cur_event.cur_path
 
         self.down_segment[down_id] = down_quality
         self.buffer_size = sum((self.down_segment[self.play_id:] != self.IS_NOT_DOWNLOADED)) * self.VIDEO_CHUNK_LEN
@@ -387,15 +330,14 @@ class Env(gym.Env):
         self.time_line.remove_event()
         self.time_line.sort()
 
+        # One step happen between 2 DOWN EVENT
         while True:
-            cur_event = self.time_line.get_next_event()  # cur_event may better local var
-            #     print(cur_event)
+            cur_event = self.time_line.get_next_event()
             cur_time = cur_event.cur_time
             cur_path = cur_event.cur_path
 
             if cur_event.event_type == Event.DOWN:
                 if len(self.pick_next_segment()) == 0:
-                # if len(self.pick_next_segment()) == 0:
                     self.time_line.add(SleepFinishEvent(cur_time=cur_time, cur_path=cur_path))
                 else:
                     break
@@ -406,7 +348,6 @@ class Env(gym.Env):
                 if cur_event.cur_path == Path.PATH1:
                      self.est_throughput1 = cur_event.est_throughput  # in bits per second
                      self.delay1 = cur_event.delay
-
                 else:
                     self.est_throughput2 = cur_event.est_throughput  # in bits per second
                     self.delay2 = cur_event.delay
@@ -417,7 +358,6 @@ class Env(gym.Env):
                     self.time_line.add(DownEvent(cur_time=cur_time+self.MIC_SEC, cur_path=cur_path))
 
             elif cur_event.event_type == Event.SLEEPF:  # this make an infinite loop
-                # self.sleep_time += self.SAMPLE
                 if (self.buffer_size > self.BUFFER_THRESH) or (self.IS_NOT_DOWNLOADED not in self.down_segment):
                     self.time_line.add(SleepFinishEvent(cur_time=cur_time+self.SAMPLE, cur_path=cur_path))
                 else:
@@ -441,7 +381,6 @@ class Env(gym.Env):
                                                    playf_quality=play_quality))
 
             elif cur_event.event_type == Event.PLAYF:
-                # print(cur_event)
                 self.play_id = cur_event.playf_id  # finish play_id
 
                 if self.play_id == self.CHUNK_TIL_VIDEO_END_CAP - 1:
@@ -454,7 +393,7 @@ class Env(gym.Env):
                     self.time_line.add(PlayEvent(cur_time=cur_time+self.MIC_SEC, play_id=self.play_id+1,
                                                  play_quality=self.down_segment_f[self.play_id+1]))
 
-            elif cur_event.event_type == Event.FREEZEF:  # this if make an infinite loop
+            elif cur_event.event_type == Event.FREEZEF:
                 self.rebufer_time += self.SAMPLE
                 # next chunk has not downloaded yet
                 if self.down_segment_f[int(cur_event.next_play_id)] == self.IS_NOT_DOWNLOADED:
@@ -474,7 +413,6 @@ class Env(gym.Env):
         sum_reward_cummulate = self.quality_reward_cummulate - self.smooth_penalty_cummulate - \
                      self.rebuffer_penalty_cummulate - self.low_buffer_penalty_cummulate
 
-        sum_reward_norm = sum_reward_cummulate / 100
         step_reward = sum_reward_cummulate - self.last_sum_reward_cummulate
         step_reward_norm = step_reward / 100
         self.last_sum_reward_cummulate = sum_reward_cummulate
@@ -484,11 +422,6 @@ class Env(gym.Env):
                                              self.smooth_penalty_cummulate, self.rebuffer_penalty_cummulate,
                                              self.low_buffer_penalty_cummulate, self.buffer_size))
             self.step_no += 1
-        # print(self.print_template.format(self.step_no, step_reward_norm, self.quality_reward_cummulate,
-        #                                  self.smooth_penalty_cummulate, self.rebuffer_penalty_cummulate,
-        #                                  self.low_buffer_penalty_cummulate, self.buffer_size))
-        # self.step_no += 1
-
 
         # CALCULATE NEW STATE
         next_chunk_size = np.array([])
@@ -501,8 +434,6 @@ class Env(gym.Env):
                 next_chunk_size = np.append(next_chunk_size, np.array([0] * self.QUALITY_SPACE))
                 chunk_state = np.append(chunk_state, 0)
 
-
-        # print(is_active)
         self.network_speed1 = np.roll(self.network_speed1, axis=-1, shift=1)
         self.network_speed1[0] = self.est_throughput1 / 1e6  # in Mbps
 
@@ -521,7 +452,6 @@ class Env(gym.Env):
             est_throughput1=self.network_speed1,
             est_throughput2=self.network_speed2,
             next_chunk_size=next_chunk_size / 1e6,
-            # quality_in_buffer=chunk_state / self.QUALITY_SPACE,
             quality_in_buffer=chunk_state,
             buffer_size=np.array([self.buffer_size / self.BUFFER_NORM_FACTOR]),
             percentage_remain_video_chunks=np.array([remain / self.CHUNK_TIL_VIDEO_END_CAP]),
@@ -547,7 +477,3 @@ class Env(gym.Env):
             self.end_of_video = True
 
         return self.state, step_reward_norm, self.end_of_video, info
-
-
-if __name__ == '__main__':
-    random_state = np.random.RandomState(seed=4)
