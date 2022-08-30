@@ -1,0 +1,58 @@
+program: main_newstate.py
+method: bayes
+metric:
+  goal: maximize
+  name: best_reward
+parameters:
+  ppo_lr:
+    distribution: uniform
+    min: 0.00001
+    max: 0.001
+  ppo_batch_size:
+    distribution: int_uniform
+    min: 59
+    max: 590
+  ppo_n_epochs:
+    values: [10, 20, 30]
+  ppo_gamma:
+    values: [0.99, 1.0]
+  ppo_gae_lambda:
+    values: [0.9, 0.95]
+  ppo_clip_range:
+    values: [0.2, 0.3]
+  ppo_ent_coef:
+    values: [0.0, 0.00001, 0.00000001]
+  ppo_vf_coef:
+    distribution: uniform
+    min: 0.2
+    max: 0.5
+  features_dim:
+    values: [ 128, 256, 512 ]
+  policy_net_arch_units:
+    values: [ 64, 128, 256, 512 ]
+  policy_net_arch_layers:
+    values: [ 1, 2, 3, 4 ]
+  value_net_arch_units:
+    values: [ 64, 128, 256, 512 ]
+  value_net_arch_layers:
+    values: [ 1, 2, 3, 4 ]
+  act_func:
+    values: [ "tanh", "relu" ]
+command:
+  - ${env}
+  - ${interpreter}
+  - ${program}
+  - "--schedule_type"
+  - "NO_DUP"
+  - "--algorithms"
+  - "PPO"
+  - "--multi-discrete"
+  - True
+  - "--other_algorithms"
+  - ""
+  - "--n_envs"
+  - 1
+  - "--use_wandb"
+  - "true"
+  - ${args}
+wandb agent ntnghia_iu/multipath/hic8epb5
