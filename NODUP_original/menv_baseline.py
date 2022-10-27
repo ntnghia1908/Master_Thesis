@@ -394,7 +394,7 @@ class Env(gym.Env):
                                                  play_quality=self.down_segment_f[self.play_id+1]))
 
             elif cur_event.event_type == Event.FREEZEF:
-                self.rebufer_time += self.SAMPLE
+                self.rebufer_time += self.SAMPLE # calculate rebuffering time
                 # next chunk has not downloaded yet
                 if self.down_segment_f[int(cur_event.next_play_id)] == self.IS_NOT_DOWNLOADED:
                     self.time_line.add(FreezeFinishEvent(cur_time=cur_time+self.SAMPLE,
