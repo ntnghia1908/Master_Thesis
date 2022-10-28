@@ -393,7 +393,7 @@ class Env(gym.Env):
                     self.time_line.add(PlayEvent(cur_time=cur_time+self.MIC_SEC, play_id=self.play_id+1,
                                                  play_quality=self.down_segment_f[self.play_id+1]))
 
-            elif cur_event.event_type == Event.FREEZEF:
+            elif cur_event.event_type == Event.REBUFFER:
                 self.rebufer_time += self.SAMPLE # calculate rebuffering time
                 # next chunk has not downloaded yet
                 if self.down_segment_f[int(cur_event.next_play_id)] == self.IS_NOT_DOWNLOADED:

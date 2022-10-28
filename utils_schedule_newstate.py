@@ -22,7 +22,7 @@ class Event:
     PLAY = 3  # [cur_time, PLAY, play_id, -1]
     PLAYF = 4  # [cur_time, PLAYF, play_id, -1]
     SLEEPF = 5  # [cur_time, SLEEPF, play_id, cur_path]
-    FREEZEF = 6 # [cur_time, FREEZEF, next_play_id, cur_path]
+    REBUFFER = 6 # [cur_time, FREEZEF, next_play_id, cur_path]
     INACTIVEF = 7
 
     def __init__(self, cur_time, event_type):
